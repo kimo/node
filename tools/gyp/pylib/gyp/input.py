@@ -2681,18 +2681,18 @@ def Load(build_files, variables, includes, depth, generator_input_info, check,
   # Normalize paths everywhere.  This is important because paths will be
   # used as keys to the data dict and for references between input files.
   build_files = set(map(os.path.normpath, build_files))
-  if parallel:
-    LoadTargetBuildFilesParallel(build_files, data, aux_data,
-                                 variables, includes, depth, check,
-                                 generator_input_info)
-  else:
-    for build_file in build_files:
-      try:
-        LoadTargetBuildFile(build_file, data, aux_data,
-                            variables, includes, depth, check, True)
-      except Exception, e:
-        gyp.common.ExceptionAppend(e, 'while trying to load %s' % build_file)
-        raise
+  #if parallel:
+  #  LoadTargetBuildFilesParallel(build_files, data, aux_data,
+  #                               variables, includes, depth, check,
+  #                               generator_input_info)
+  #else:
+  for build_file in build_files:
+    try:
+      LoadTargetBuildFile(build_file, data, aux_data,
+                          variables, includes, depth, check, True)
+    except Exception, e:
+      gyp.common.ExceptionAppend(e, 'while trying to load %s' % build_file)
+      raise
 
   # Build a dict to access each target's subdict by qualified name.
   targets = BuildTargetsDict(data)
