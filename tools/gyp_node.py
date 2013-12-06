@@ -53,5 +53,10 @@ if __name__ == '__main__':
 
   args.append('-Dcomponent=static_library')
   args.append('-Dlibrary=static_library')
+
+  # Out of the box FreeBSD7.x and FreeBSD8.x builds cannot support parallel option
+  if ( sys.platform.startswith('freebsd7') or sys.platform.startswith('freebsd8') ):
+    args.append('--no-parallel')
+
   gyp_args = list(args)
   run_gyp(gyp_args)
