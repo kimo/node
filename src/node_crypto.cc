@@ -113,6 +113,8 @@ X509_STORE* root_cert_store;
 // Just to generate static methods
 template class SSLWrap<TLSCallbacks>;
 template void SSLWrap<TLSCallbacks>::AddMethods(Handle<FunctionTemplate> t);
+template void SSLWrap<TLSCallbacks>::InitNPN(SecureContext* sc,
+                                             TLSCallbacks* base);
 template SSL_SESSION* SSLWrap<TLSCallbacks>::GetSessionCallback(
     SSL* s,
     unsigned char* key,
@@ -862,6 +864,25 @@ void SSLWrap<Base>::AddMethods(Handle<FunctionTemplate> t) {
 
 
 template <class Base>
+void SSLWrap<Base>::InitNPN(SecureContext* sc, Base* base) {
+  if (base->is_server()) {
+#ifdef OPENSSL_NPN_NEGOTIATED
+    // Server should advertise NPN protocols
+    SSL_CTX_set_next_protos_advertised_cb(sc->ctx_,
+                                          AdvertiseNextProtoCallback,
+                                          base);
+#endif  // OPENSSL_NPN_NEGOTIATED
+  } else {
+#ifdef OPENSSL_NPN_NEGOTIATED
+    // Client should select protocol from list of advertised
+    // If server supports NPN
+    SSL_CTX_set_next_proto_select_cb(sc->ctx_, SelectNextProtoCallback, base);
+#endif  // OPENSSL_NPN_NEGOTIATED
+  }
+}
+
+
+template <class Base>
 SSL_SESSION* SSLWrap<Base>::GetSessionCallback(SSL* s,
                                                unsigned char* key,
                                                int len,
@@ -1064,6 +1085,17 @@ void SSLWrap<Base>::GetPeerCertificate(
 
       sk_ASN1_OBJECT_pop_free(eku, ASN1_OBJECT_free);
       info->Set(env->ext_key_usage_string(), ext_key_usage);
+    }
+
+    if (ASN1_INTEGER* serial_number = X509_get_serialNumber(peer_cert)) {
+      if (BIGNUM* bn = ASN1_INTEGER_to_BN(serial_number, NULL)) {
+        if (char* buf = BN_bn2hex(bn)) {
+          info->Set(env->serial_number_string(),
+                    OneByteString(node_isolate, buf));
+          OPENSSL_free(buf);
+        }
+        BN_free(bn);
+      }
     }
 
     X509_free(peer_cert);
@@ -1684,6 +1716,7 @@ int Connection::SelectSNIContextCallback_(SSL *s, int *ad, void* arg) {
       if (secure_context_constructor_template->HasInstance(ret)) {
         conn->sniContext_.Reset(node_isolate, ret);
         SecureContext* sc = Unwrap<SecureContext>(ret.As<Object>());
+        InitNPN(sc, conn);
         SSL_set_SSL_CTX(s, sc->ctx_);
       } else {
         return SSL_TLSEXT_ERR_NOACK;
@@ -1719,22 +1752,7 @@ void Connection::New(const FunctionCallbackInfo<Value>& args) {
   if (is_server)
     SSL_set_info_callback(conn->ssl_, SSLInfoCallback);
 
-#ifdef OPENSSL_NPN_NEGOTIATED
-  if (is_server) {
-    // Server should advertise NPN protocols
-    SSL_CTX_set_next_protos_advertised_cb(
-        sc->ctx_,
-        SSLWrap<Connection>::AdvertiseNextProtoCallback,
-        conn);
-  } else {
-    // Client should select protocol from advertised
-    // If server supports NPN
-    SSL_CTX_set_next_proto_select_cb(
-        sc->ctx_,
-        SSLWrap<Connection>::SelectNextProtoCallback,
-        conn);
-  }
-#endif
+  InitNPN(sc, conn);
 
 #ifdef SSL_CTRL_SET_TLSEXT_SERVERNAME_CB
   if (is_server) {

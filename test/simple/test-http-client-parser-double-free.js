@@ -21,51 +21,41 @@
 
 var common = require('../common');
 var assert = require('assert');
-var os = require('os');
+var http = require('http');
+var http_common = require('_http_common');
 
-switch (process.argv[2]) {
-  case 'child':
-    return child();
-  case undefined:
-    return parent();
-  default:
-    throw new Error('wtf? ' + process.argv[2]);
-}
+var receivedError = 0;
+var receivedClose = 0;
 
-function parent() {
-  var spawn = require('child_process').spawn;
-  var child = spawn(process.execPath, [__filename, 'child']);
+var buf = new Buffer(64 * 1024);
+buf.fill('A');
 
-  var output = '';
-
-  child.stderr.on('data', function(c) {
-    output += c;
+var server = http.createServer(function(req, res) {
+  res.write(buf, function() {
+    res.socket.write(buf);
+    res.end(function() {
+      req.socket.destroy();
+      server.close();
+    });
   });
-
-  child.stderr.setEncoding('utf8');
-
-  child.stderr.on('end', function() {
-    assert.equal(output, 'I can still debug!' + os.EOL);
-    console.log('ok - got expected message');
+}).listen(common.PORT, function() {
+  var req = http.request({ port: common.PORT, agent: false }, function(res) {
+    res.once('readable', function() {
+      /* read only one buffer */
+      res.read(1);
+    });
   });
-
-  child.on('exit', function(c) {
-    assert(!c);
-    console.log('ok - child exited nicely');
+  req.end();
+  req.on('close', function() {
+    receivedClose++;
   });
-}
+  req.on('error', function() {
+    receivedError++;
+  });
+});
 
-function child() {
-  // even when all hope is lost...
-
-  process.nextTick = function() {
-    throw new Error('No ticking!');
-  };
-
-  var stderr = process.stderr;
-  stderr.write = function() {
-    throw new Error('No writing to stderr!');
-  };
-
-  process._rawDebug('I can still %s!', 'debug');
-}
+process.on('exit', function() {
+  assert.equal(receivedError, 1);
+  assert.equal(receivedClose, 1);
+  assert.equal(http_common.parsers.list.length, 2);
+});
