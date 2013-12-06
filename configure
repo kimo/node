@@ -706,4 +706,7 @@ elif flavor == 'win':
 else:
   gyp_args = ['-f', 'make-' + flavor]
 
+if flavor in ('freebsd'):
+  gyp_args.append('--no-parallel')
+
 subprocess.call([sys.executable, 'tools/gyp_node.py'] + gyp_args)
