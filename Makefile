@@ -236,11 +236,11 @@ ARCH=arm
 else
 ARCH=x86
 endif
-endif
 ifeq ($(DESTCPU),amd64)
 ARCH=amd64
 else
 ARCH=x86
+endif
 endif
 TARNAME=node-$(VERSION)
 ifdef NIGHTLY
