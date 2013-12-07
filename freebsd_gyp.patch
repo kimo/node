@@ -1,0 +1,28 @@
+From f211c52f5ef12d1f935017e136458e459afeee8a Mon Sep 17 00:00:00 2001
+From: kimo <krishnamohanguda@gmail.com>
+Date: Fri, 6 Dec 2013 15:48:39 -0800
+Subject: [PATCH] subsystem: Fix when GYP crashes on standard FreeBSD7.x and
+ FreeBSD8.x builds
+
+issue: https://github.com/joyent/node/issues/6640
+
+Fix provided by @@tjfontaine
+---
+ configure | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/configure b/configure
+index 4a38c70..83dbba7 100755
+--- a/configure
++++ b/configure
+@@ -706,4 +706,7 @@ elif flavor == 'win':
+ else:
+   gyp_args = ['-f', 'make-' + flavor]
+ 
++if flavor in ('freebsd'):
++  gyp_args.append('--no-parallel')
++
+ subprocess.call([sys.executable, 'tools/gyp_node.py'] + gyp_args)
+-- 
+1.8.2
+
